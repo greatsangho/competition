@@ -161,3 +161,4 @@ cython_debug/
 gene2024/Stacking-lr-xgb-rf-lr.pk1
 gene2024/Stacking-lr-cat-rf-lr.pk1
 gene2024/Stacking-lr-xgb-rf-svm-lr.pk1
+gene2024/Stacking-lr-xgb-rf-svm-lr2.pk1
