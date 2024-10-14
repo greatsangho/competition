@@ -641,3 +641,4 @@ gene2024/AutogluonModels/ag-20241008_141503/utils/data/y.pkl
 gene2024/AutogluonModels/ag-20241008_141503/version.txt
 *.pkl
 *.keras
+*.ubj
