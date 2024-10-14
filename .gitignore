@@ -162,3 +162,7 @@ gene2024/Stacking-lr-xgb-rf-lr.pk1
 gene2024/Stacking-lr-cat-rf-lr.pk1
 gene2024/Stacking-lr-xgb-rf-svm-lr.pk1
 gene2024/Stacking-lr-xgb-rf-svm-lr2.pk1
+gene2024/amino3_aml5.csv
+*.pkl
+*.ubj
+*.keras
