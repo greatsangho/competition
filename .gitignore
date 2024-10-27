@@ -652,3 +652,7 @@ gene2024/amino3_cat_smote.cbm
 gene2024/cmc_export.tsv
 gene2024/amino3_cat_smote.cbm
 *.cbm
+factory/catboost_info/catboost_training.json
+factory/catboost_info/catboost_training.json
+factory/catboost_info/learn/events.out.tfevents
+factory/catboost_info/learn_error.tsv
