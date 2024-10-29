@@ -1,7 +1,12 @@
 import pandas as pd
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.neighbors import LocalOutlierFactor
+from sklearn.ensemble import IsolationForest
+from sklearn.utils import resample
+from imblearn.over_sampling import SMOTE
 import scipy
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
 
 def load_data(path):
     data_configs = {}
@@ -109,18 +114,92 @@ class T_Testor:
         return self.t_test_configs
     
     def get_useful_data(self, data):
-        return data[self.useful_features]
+        return data[self.useful_features + ['passorfail']]
+
+def remove_outliers_by_isoforest(data, outlier_rate=0.015):
+
+    iso_forest = IsolationForest(
+        n_estimators=500, 
+        contamination=outlier_rate, 
+        random_state=42
+    )
+
+    iso_forest.fit(data)
+
+    pred = iso_forest.predict(data)
+
+    outliers = data[pred == -1] # outliers
+    normal = data[pred == 1] # normal
+
+    cleaned_data = data[pred != -1]
+
+    print(f"[Outlier-Remover Log] With Outliers Shape : {data.shape}")
+    print(f"[Outlier-Remover Log] Without Outliers Shape : {cleaned_data.shape}")
+
+    return cleaned_data
+
+
+class DataResampler:
+    def __init__(self, downsampled_pass_rate, upsampled_total_fail_rate):
+        self.downsampled_pass_rate = downsampled_pass_rate
+        self.upsampled_total_fail_rate = upsampled_total_fail_rate
+    
+    def process(self, train_data, train_label, test_data, test_label):
+        train_data = train_data.reset_index(drop=True)
+        test_data = test_data.reset_index(drop=True)
+        train_label = train_label.reset_index(drop=True)
+        test_label = test_label.reset_index(drop=True)
+
+        fail_data = train_data[train_label == 1]
+        pass_data = train_data[train_label == 0]
+
+        downsampled_pass_data = resample(
+            pass_data,
+            replace = False,
+            n_samples = round(len(pass_data) * self.downsampled_pass_rate),
+            random_state = 42,
+            stratify = pass_data['mold_code']
+        )
+        downsampled_pass_label = train_label[downsampled_pass_data.index]
+
+        not_used_pass_data = pass_data.drop(downsampled_pass_data.index)
+        not_used_pass_label = train_label[pass_data.index].drop(downsampled_pass_data.index)
+
+        downsampled_pass_data = downsampled_pass_data.reset_index(drop=True)
+        downsampled_pass_label = downsampled_pass_label.reset_index(drop=True)
+        not_used_pass_data = not_used_pass_data.reset_index(drop=True)
+        not_used_pass_label = not_used_pass_label.reset_index(drop=True)
+
+        test_data = pd.concat([test_data, not_used_pass_data], axis=0).reset_index(drop=True)
+        test_label = pd.concat([test_label, not_used_pass_label], axis=0).reset_index(drop=True)
+
+        train_data = pd.concat([fail_data, downsampled_pass_data], axis=0).reset_index(drop=True)
+        train_label = pd.concat([train_label[fail_data.index], downsampled_pass_label], axis=0).reset_index(drop=True)
+
+
+        smote = SMOTE(sampling_strategy=0.15, random_state=42)
+        train_data, train_label = smote.fit_resample(train_data, train_label)
+
+        return train_data, train_label, test_data, test_label
+
 
 class KampDataLoader:
-    def __init__(self, path, nan_grid, encode_grid, p_threshold=0.05, get_useful_p_data=False):
+    def __init__(self, path, nan_grid, encode_grid, outlier_method='iso', 
+    p_threshold=0.05, get_useful_p_data=False, iso_outlier_rate=0.015,
+    downsampled_pass_rate=0.6, upsampled_total_fail_rate=0.15):
         self.path = path
         self.nan_grid = nan_grid
         self.encode_grid = encode_grid
         self.p_threshold = p_threshold
         self.get_useful_p_data = get_useful_p_data
+        self.iso_outlier_rate = iso_outlier_rate
+        self.outlier_method='iso'
+        self.downsampled_pass_rate= downsampled_pass_rate
+        self.upsampled_total_fail_rate = upsampled_total_fail_rate
     
     def process(self):
-        # load raw data
+        print('='*20, '[Data Process Start]', '='*20, '\n')
+
         print("[process Log] Loading Raw Data...")
         data_configs = load_data(self.path)
         print("[process Log] Done\n")
@@ -137,11 +216,17 @@ class KampDataLoader:
         data = CatFeatureEncoder(encode_grid=self.encode_grid).process(data)
         print("[process Log] Done\n")
 
-        print("[process Log] Removing Outliers (LOF)...")
-        numeric_features = [feature for feature in numeric_features 
-                    if feature not in ['count', 'molten_volume', 'passorfail', 'mold_code']]
-        data = remove_outlier_by_lof(data, numeric_features)
-        print("[process Log] Done\n")
+        if self.outlier_method == 'iso':
+            print("[process Log] Removing Outliers (IsoForest)...")
+            data = remove_outliers_by_isoforest(data=data, outlier_rate=self.iso_outlier_rate)
+            print("[process Log] Done\n")
+            
+        elif self.outlier_method == 'lof':
+            print("[process Log] Removing Outliers (LOF)...")
+            numeric_features = [feature for feature in numeric_features 
+                        if feature not in ['count', 'molten_volume', 'mold_code']]
+            data = remove_outlier_by_lof(data, numeric_features)
+            print("[process Log] Done\n")
 
         if self.get_useful_p_data:
             print("[process Log] T-Testing...")
@@ -150,10 +235,38 @@ class KampDataLoader:
             data = t_test.get_useful_data(data)
             print("[process Log] Done\n")
         
-        self.data = data
+        print("[process Log] Train Test Spliting...")
+        train_data, test_data, train_label, test_label = train_test_split(
+            data.drop(columns=['passorfail']), data['passorfail'],
+            test_size=0.2,
+            stratify=data['passorfail'],
+            random_state=42
+        )
+        print("[process Log] Done\n")
+
+        print("[process Log] Data Resampling...")
+        x_train, y_train, x_test, y_test = DataResampler(downsampled_pass_rate=self.downsampled_pass_rate, upsampled_total_fail_rate=self.upsampled_total_fail_rate).process(train_data, train_label, test_data, test_label)
+        print("[process Log] Done\n")
+
+        print("[process Log] Data Scaling (MinMaxScaler)...")
+        scaler = MinMaxScaler()
+        x_train = scaler.fit_transform(x_train)
+        x_test = scaler.fit_transform(x_test)
+        print("[process Log] Done\n")
+
+        self.data = {
+            'train_data' : x_train,
+            'train_label' : y_train,
+            'test_data' : x_test,
+            'test_label' : y_test
+        }
+
+        print('='*23, '[Done]', '='*23)
 
     def load(self):
         return self.data
     
     def save(self, path):
         self.data.to_csv(path, encoding='cp949', index=False)
+
+
