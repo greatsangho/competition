@@ -656,3 +656,4 @@ factory/catboost_info/catboost_training.json
 factory/catboost_info/catboost_training.json
 factory/catboost_info/learn/events.out.tfevents
 factory/catboost_info/learn_error.tsv
+*.json

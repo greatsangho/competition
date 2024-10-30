@@ -8,6 +8,21 @@ import scipy
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 
+NAN_GRID = {
+    'drop_features' : ['line', 'name', 'mold_name', 'time', 'date', 
+                       'emergency_stop', 'molten_volume', 'registration_time'],
+    'simple_fill_dict' : {'tryshot_signal' : 'No', 'heating_furnace' : 'C'},
+    'mode_fill_features' : ['upper_mold_temp3', 'lower_mold_temp3', 'molten_temp'],
+    'mode_criterion' : 'mold_code'
+}
+
+ENCODE_GRID = {
+    'working' : ['정지', '가동'],
+    'tryshot_signal' : ['No', 'D'],
+    'heating_furnace' : ['A', 'B', 'C'],
+    'mold_code' : [8412, 8413, 8573, 8576, 8600, 8722, 8917]
+}
+
 def load_data(path):
     data_configs = {}
 
@@ -184,43 +199,69 @@ class DataResampler:
 
 
 class KampDataLoader:
-    def __init__(self, path, nan_grid, encode_grid, outlier_method='iso', 
-    p_threshold=0.05, get_useful_p_data=False, iso_outlier_rate=0.015,
-    downsampled_pass_rate=0.6, upsampled_total_fail_rate=0.15):
+    def __init__(self, 
+                 path, 
+                 
+                 nan_grid=NAN_GRID, 
+                 
+                 encode_grid=ENCODE_GRID, 
+                 
+                 outlier_method='iso',
+                 iso_outlier_rate=0.015,
+
+                 p_threshold=0.05, 
+                 get_useful_p_data=False, 
+
+                 do_resample=True,
+                 downsampled_pass_rate=0.6, 
+                 upsampled_total_fail_rate=0.15):
+        
         self.path = path
+
         self.nan_grid = nan_grid
+        
         self.encode_grid = encode_grid
+        
+        self.iso_outlier_rate = iso_outlier_rate
+        self.outlier_method=outlier_method
+
         self.p_threshold = p_threshold
         self.get_useful_p_data = get_useful_p_data
-        self.iso_outlier_rate = iso_outlier_rate
-        self.outlier_method='iso'
+
+        self.do_resample=True,
         self.downsampled_pass_rate= downsampled_pass_rate
         self.upsampled_total_fail_rate = upsampled_total_fail_rate
     
     def process(self):
         print('='*20, '[Data Process Start]', '='*20, '\n')
 
+        # 로우 데이터 로드
         print("[process Log] Loading Raw Data...")
         data_configs = load_data(self.path)
         print("[process Log] Done\n")
 
+        # 데이터 configs 설정
         data = data_configs['data']
         numeric_features = data_configs['numeric_features']
         object_features = data_configs['object_features']
 
+        # 결측치 처리
         print("[process Log] Processing Nan Value...")
         data = NanProcessor(nan_grid=self.nan_grid).process(data)
         print("[process Log] Done\n")
-        
+
+        # 범주형 변수 인코딩
         print("[process Log] Encoding Categorical Features...")
         data = CatFeatureEncoder(encode_grid=self.encode_grid).process(data)
         print("[process Log] Done\n")
 
+        # 이상치 처리
+        # IsolationForest 방식
         if self.outlier_method == 'iso':
             print("[process Log] Removing Outliers (IsoForest)...")
             data = remove_outliers_by_isoforest(data=data, outlier_rate=self.iso_outlier_rate)
             print("[process Log] Done\n")
-            
+        # LOF 방식
         elif self.outlier_method == 'lof':
             print("[process Log] Removing Outliers (LOF)...")
             numeric_features = [feature for feature in numeric_features 
@@ -228,6 +269,7 @@ class KampDataLoader:
             data = remove_outlier_by_lof(data, numeric_features)
             print("[process Log] Done\n")
 
+        # T-Test 기반 feauture 선정
         if self.get_useful_p_data:
             print("[process Log] T-Testing...")
             t_test = T_Testor(p_threshold=self.p_threshold)
@@ -235,24 +277,33 @@ class KampDataLoader:
             data = t_test.get_useful_data(data)
             print("[process Log] Done\n")
         
+        # 데이터 스케일링 (MinMaxScaler)
+        print("[process Log] Data Scaling (MinMaxScaler)...")
+        data_input = data.drop(columns=['passorfail'])
+        input_feature_names = data_input.columns
+        data_label = data['passorfail']
+        scaler = MinMaxScaler()
+        data_input = scaler.fit_transform(data_input)
+        data_input = pd.DataFrame(data_input, columns=input_feature_names)
+        print("[process Log] Done\n")
+
+        
+
+        # 학습-평가 데이터 분할
         print("[process Log] Train Test Spliting...")
         train_data, test_data, train_label, test_label = train_test_split(
-            data.drop(columns=['passorfail']), data['passorfail'],
+            data_input, data_label,
             test_size=0.2,
-            stratify=data['passorfail'],
+            stratify=data_label,
             random_state=42
         )
         print("[process Log] Done\n")
 
-        print("[process Log] Data Resampling...")
-        x_train, y_train, x_test, y_test = DataResampler(downsampled_pass_rate=self.downsampled_pass_rate, upsampled_total_fail_rate=self.upsampled_total_fail_rate).process(train_data, train_label, test_data, test_label)
-        print("[process Log] Done\n")
-
-        print("[process Log] Data Scaling (MinMaxScaler)...")
-        scaler = MinMaxScaler()
-        x_train = scaler.fit_transform(x_train)
-        x_test = scaler.fit_transform(x_test)
-        print("[process Log] Done\n")
+        # 데이터 리샘플링
+        if self.do_resample:
+            print("[process Log] Data Resampling...")
+            x_train, y_train, x_test, y_test = DataResampler(downsampled_pass_rate=self.downsampled_pass_rate, upsampled_total_fail_rate=self.upsampled_total_fail_rate).process(train_data, train_label, test_data, test_label)
+            print("[process Log] Done\n")
 
         self.data = {
             'train_data' : x_train,
@@ -268,5 +319,3 @@ class KampDataLoader:
     
     def save(self, path):
         self.data.to_csv(path, encoding='cp949', index=False)
-
-
