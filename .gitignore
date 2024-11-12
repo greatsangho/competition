@@ -152,6 +152,11 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# image
+*.png
+*.Identifier
+*.zip
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
@@ -699,3 +704,4 @@ factory/catboost_info/tmp/cat_feature_index.27af3a3e-6a0dbdb0-fddce991-bfd2ff9f.
 factory/catboost_info/tmp/cat_feature_index.33c9c8e9-14f03014-f7fe404d-bd0b9b3a.tmp
 factory/catboost_info/tmp/cat_feature_index.a331da85-7493a812-846196e3-319ebca0.tmp
 factory/catboost_info/catboost_training.json
+image2024/open/test_input/TEST_000.png
