@@ -175,3 +175,4 @@ cython_debug/
 *.tfevents
 *.tmp
 *.pth
+k-water/**/*.csv
