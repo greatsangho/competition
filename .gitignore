@@ -176,3 +176,4 @@ cython_debug/
 *.tmp
 *.pth
 k-water/**/*.csv
+image2024/big-lama/models/best.ckpt
