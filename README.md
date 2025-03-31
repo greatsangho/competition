@@ -4,6 +4,13 @@ This repository contains my code submissions for various AI competitions hosted 
 
 - **Link**: [Competition Results](https://pplx-res.cloudinary.com/image/upload/v1742894859/user_uploads/hWxbjxRjcgLDBlg/image)
 
+### 1. 2024 생명연구자원 AI활용 경진대회 (gene2024)
+- **Platform**: Dacon
+- **Description**: AI competition focusing on utilizing bio-data for problem-solving in the field of life science research resources.
+- **Folder**: `gene2024`
+- **Link**: [Competition Details](https://dacon.io/competitions/official/236355/overview/description)
+- **Performance**: Top 12% (상위 5%)
+
 ### 2. 이미지 색상화 및 손실 부분 복원 AI 경진대회 (image2024)
 - **Platform**: Dacon
 - **Description**: AI competition for developing algorithms to colorize black and white images and restore lost parts of images.
